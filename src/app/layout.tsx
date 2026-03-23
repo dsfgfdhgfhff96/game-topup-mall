@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { ToastProvider } from "@/components/ui/Toast";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
   title: "极速卡 - 游戏充值点卡商城",
@@ -21,7 +24,11 @@ export default function RootLayout({
       <body className="bg-bg-primary text-text-primary antialiased">
         <AuthProvider>
           <CartProvider>
-            {children}
+            <ToastProvider>
+              <Header />
+              <main className="min-h-screen pt-16">{children}</main>
+              <Footer />
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </body>
