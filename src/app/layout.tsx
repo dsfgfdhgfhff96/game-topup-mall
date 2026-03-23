@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { CartProvider } from "@/contexts/CartContext";
 
 export const metadata: Metadata = {
   title: "极速卡 - 游戏充值点卡商城",
@@ -17,7 +19,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="bg-bg-primary text-text-primary antialiased">
-        {children}
+        <AuthProvider>
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
