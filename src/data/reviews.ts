@@ -1,0 +1,358 @@
+import { Review } from '@/types'
+
+export const reviews: Review[] = [
+  // 王者荣耀评论
+  {
+    id: 'r-001',
+    productId: 'wz-001',
+    userName: '氪金战士',
+    avatar: '氪',
+    rating: 5,
+    content: '充值秒到账，价格比官方还便宜，以后就在这里充了，强烈推荐！',
+    date: '2026-03-10',
+  },
+  {
+    id: 'r-002',
+    productId: 'wz-001',
+    userName: '小明爱玩游戏',
+    avatar: '小',
+    rating: 5,
+    content: '已经买了好几次了，每次都秒到，从来没出过问题，客服态度也很好。',
+    date: '2026-03-08',
+  },
+  {
+    id: 'r-003',
+    productId: 'wz-002',
+    userName: '峡谷一哥',
+    avatar: '峡',
+    rating: 5,
+    content: '月卡性价比超高，每天都能领点券，比官方自己买划算太多了。',
+    date: '2026-03-07',
+  },
+  {
+    id: 'r-004',
+    productId: 'wz-001',
+    userName: '咸鱼翻身日记',
+    avatar: '咸',
+    rating: 4,
+    content: '第一次买有点担心，结果充值很顺利，价格也实惠，下次还会来。',
+    date: '2026-03-05',
+  },
+  {
+    id: 'r-005',
+    productId: 'wz-003',
+    userName: '王者老司机',
+    avatar: '王',
+    rating: 5,
+    content: '战令性价比很高，皮肤赢得美美的，这个价格买到很值，已经连续三个赛季在这充了。',
+    date: '2026-03-04',
+  },
+  {
+    id: 'r-006',
+    productId: 'wz-004',
+    userName: '皮肤收藏家',
+    avatar: '皮',
+    rating: 5,
+    content: '大额充值折扣更多，买了3280点券，省了将近20块，很划算！',
+    date: '2026-03-02',
+  },
+
+  // 原神评论
+  {
+    id: 'r-007',
+    productId: 'ys-001',
+    userName: '提瓦特旅行者',
+    avatar: '提',
+    rating: 5,
+    content: '原神月卡超值，加上这里的折扣，每个月能省不少，强烈安利给所有原神玩家。',
+    date: '2026-03-11',
+  },
+  {
+    id: 'r-008',
+    productId: 'ys-001',
+    userName: '抽卡不歪侠',
+    avatar: '抽',
+    rating: 5,
+    content: '充了980结晶，直接用来抽限定，价格比官方便宜一点但是量很大，下次还充。',
+    date: '2026-03-09',
+  },
+  {
+    id: 'r-009',
+    productId: 'ys-003',
+    userName: '满命神里',
+    avatar: '满',
+    rating: 5,
+    content: '月卡每天记得登录领，算下来一个月能领好多原石，性价比超高，必买！',
+    date: '2026-03-06',
+  },
+  {
+    id: 'r-010',
+    productId: 'ys-002',
+    userName: '零氪快乐玩',
+    avatar: '零',
+    rating: 4,
+    content: '大额充值折扣给力，比自己在游戏里买便宜一些，而且到账很快，靠谱平台。',
+    date: '2026-03-03',
+  },
+  {
+    id: 'r-011',
+    productId: 'ys-005',
+    userName: '元素反应达人',
+    avatar: '元',
+    rating: 5,
+    content: '纪行通行证买得很值，里面的奖励能拿好多原石，加上折扣，基本等于打折买原石。',
+    date: '2026-03-01',
+  },
+  {
+    id: 'r-012',
+    productId: 'ys-008',
+    userName: '角色全满贯',
+    avatar: '角',
+    rating: 5,
+    content: '联动礼包限时购入，皮肤超级好看，价格比官方低，果断下单没有后悔。',
+    date: '2026-02-28',
+  },
+
+  // 和平精英评论
+  {
+    id: 'r-013',
+    productId: 'hp-001',
+    userName: '鸡血战神',
+    avatar: '鸡',
+    rating: 5,
+    content: 'UC充值快，价格也便宜，已经在这里充了好几个月的UC了，每次都很顺利。',
+    date: '2026-03-10',
+  },
+  {
+    id: 'r-014',
+    productId: 'hp-001',
+    userName: '大吉大利今晚吃鸡',
+    avatar: '大',
+    rating: 5,
+    content: '比官方便宜，而且到账速度超快，充300UC不到一分钟就到了，赞！',
+    date: '2026-03-08',
+  },
+  {
+    id: 'r-015',
+    productId: 'hp-003',
+    userName: '永久枪王',
+    avatar: '永',
+    rating: 5,
+    content: '月卡每天自动发放，算下来比单独买UC划算多了，游戏里资源一直不断。',
+    date: '2026-03-05',
+  },
+  {
+    id: 'r-016',
+    productId: 'hp-004',
+    userName: '强装不换皮肤党',
+    avatar: '强',
+    rating: 4,
+    content: '战令通行证买了精英版，里面的皮肤挺好看的，价格比官方便宜，值了。',
+    date: '2026-03-02',
+  },
+
+  // 英雄联盟评论
+  {
+    id: 'r-017',
+    productId: 'lol-001',
+    userName: '峡谷传说',
+    avatar: '峡',
+    rating: 5,
+    content: '充了790RP，买了一个史诗皮肤刚好够，价格比直接充实惠，下次还来。',
+    date: '2026-03-09',
+  },
+  {
+    id: 'r-018',
+    productId: 'lol-001',
+    userName: '全英雄玩家',
+    avatar: '全',
+    rating: 5,
+    content: '价格比在客户端里充划算，之前都是直接在游戏里充，发现这里之后就不去那里充了。',
+    date: '2026-03-07',
+  },
+  {
+    id: 'r-019',
+    productId: 'lol-005',
+    userName: '开箱大神',
+    avatar: '开',
+    rating: 4,
+    content: '买了10个宝箱，开出了两个传说皮肤，这个折扣价超值，运气也不错！',
+    date: '2026-03-04',
+  },
+  {
+    id: 'r-020',
+    productId: 'lol-002',
+    userName: '百皮无一用',
+    avatar: '百',
+    rating: 5,
+    content: '大额RP性价比最高，收藏各种皮肤就在这里冲，方便实惠客服响应快。',
+    date: '2026-03-01',
+  },
+
+  // Steam 评论
+  {
+    id: 'r-021',
+    productId: 'st-001',
+    userName: '游戏囤积症患者',
+    avatar: '游',
+    rating: 5,
+    content: 'Steam钱包充了两次，每次都是秒到，而且比直接用微信充省了几块钱，很划算！',
+    date: '2026-03-11',
+  },
+  {
+    id: 'r-022',
+    productId: 'st-001',
+    userName: '特卖等待者',
+    avatar: '特',
+    rating: 5,
+    content: '每次Steam特卖前都来这里充钱包，这里折扣好，等特卖的时候买游戏更划算。',
+    date: '2026-03-09',
+  },
+  {
+    id: 'r-023',
+    productId: 'st-003',
+    userName: '独游爱好者',
+    avatar: '独',
+    rating: 5,
+    content: '特惠充值活动力度很大，150元套餐省了整整15块，数量大之后用来买独游超划算。',
+    date: '2026-03-06',
+  },
+  {
+    id: 'r-024',
+    productId: 'st-005',
+    userName: 'AAA大作收藏者',
+    avatar: 'A',
+    rating: 5,
+    content: '买了大作激活码，直接激活进库，价格是官方售价的七折多，非常满意！',
+    date: '2026-03-03',
+  },
+  {
+    id: 'r-025',
+    productId: 'st-006',
+    userName: '年度特卖常客',
+    avatar: '年',
+    rating: 5,
+    content: '年度特卖充值套餐真的很实惠，提前充好等打折，今年省了好几百，强推！',
+    date: '2026-02-28',
+  },
+
+  // PUBG 评论
+  {
+    id: 'r-026',
+    productId: 'pubg-001',
+    userName: '绝地皮肤控',
+    avatar: '绝',
+    rating: 5,
+    content: 'G币充值秒到，我是用来买枪皮肤的，比其他平台便宜，而且没有任何问题。',
+    date: '2026-03-08',
+  },
+  {
+    id: 'r-027',
+    productId: 'pubg-002',
+    userName: '一枪一个小朋友',
+    avatar: '一',
+    rating: 4,
+    content: '生存通行证性价比不错，里面的皮肤挺好看的，价格折扣比官方好一点。',
+    date: '2026-03-05',
+  },
+
+  // Minecraft 评论
+  {
+    id: 'r-028',
+    productId: 'mc-001',
+    userName: '方块建筑师',
+    avatar: '方',
+    rating: 5,
+    content: 'Minecoins充值很顺畅，买了皮肤包给孩子用，便宜又好用，服务很靠谱。',
+    date: '2026-03-09',
+  },
+  {
+    id: 'r-029',
+    productId: 'mc-002',
+    userName: '苦手创生者',
+    avatar: '苦',
+    rating: 5,
+    content: 'Java版正版账号，激活后完全没有问题，比其他地方便宜了将近20块，好评！',
+    date: '2026-03-06',
+  },
+
+  // Roblox 评论
+  {
+    id: 'r-030',
+    productId: 'rb-001',
+    userName: '乐高小霸王',
+    avatar: '乐',
+    rating: 5,
+    content: 'Robux充值方便快捷，给孩子买的，到账很快，价格比官网便宜，以后常来。',
+    date: '2026-03-10',
+  },
+  {
+    id: 'r-031',
+    productId: 'rb-002',
+    userName: 'Roblox资深玩家',
+    avatar: 'R',
+    rating: 5,
+    content: 'Premium会员买的，每个月发的Robux比这里会员价格值钱，妥妥的划算。',
+    date: '2026-03-07',
+  },
+
+  // 天涯明月刀评论
+  {
+    id: 'r-032',
+    productId: 'ty-001',
+    userName: '江湖行走侠',
+    avatar: '江',
+    rating: 5,
+    content: '元宝充值到账超快，比游戏官网直充还便宜，以后就认准这里了！',
+    date: '2026-03-08',
+  },
+  {
+    id: 'r-033',
+    productId: 'ty-003',
+    userName: '倚天屠龙记',
+    avatar: '倚',
+    rating: 5,
+    content: '限定时装买了B套，穿上之后在游戏里回头率超高，价格也比预期便宜，值！',
+    date: '2026-03-04',
+  },
+
+  // 剑网三评论
+  {
+    id: 'r-034',
+    productId: 'jw-001',
+    userName: '剑侠老玩家',
+    avatar: '剑',
+    rating: 5,
+    content: '通宝充值很稳，充了好多次了，从来没有出过问题，客服有问必答，好评！',
+    date: '2026-03-09',
+  },
+  {
+    id: 'r-035',
+    productId: 'jw-003',
+    userName: '侠骨柔情',
+    avatar: '侠',
+    rating: 5,
+    content: '限定时装礼包价格比官方优惠了不少，到手之后立刻穿上了，相当满意。',
+    date: '2026-03-05',
+  },
+  {
+    id: 'r-036',
+    productId: 'jw-001',
+    userName: '古道西风瘦马',
+    avatar: '古',
+    rating: 4,
+    content: '充值顺利，到账速度快，价格合理，唯一希望支付方式能再多一些，其他都好。',
+    date: '2026-03-02',
+  },
+]
+
+export function getReviewsByProduct(productId: string): Review[] {
+  return reviews.filter((r) => r.productId === productId)
+}
+
+export function getAverageRating(productId: string): number {
+  const productReviews = getReviewsByProduct(productId)
+  if (productReviews.length === 0) return 0
+  const sum = productReviews.reduce((acc, r) => acc + r.rating, 0)
+  return Math.round((sum / productReviews.length) * 10) / 10
+}
