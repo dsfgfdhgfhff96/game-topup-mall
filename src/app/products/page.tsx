@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { products } from '@/data/products'
 import { Product } from '@/types'
@@ -133,7 +133,15 @@ function Pagination({
   )
 }
 
-export default function ProductsPage() {
+export default function ProductsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-text-secondary">加载中...</div>}>
+      <ProductsPage />
+    </Suspense>
+  )
+}
+
+function ProductsPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
 

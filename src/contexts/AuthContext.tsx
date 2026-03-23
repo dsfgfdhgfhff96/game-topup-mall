@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(newUser)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function login(username: string, _password: string): void {
     persistUser(buildUser(username))
   }
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function register(username: string, _password: string): void {
     persistUser(buildUser(username))
   }
