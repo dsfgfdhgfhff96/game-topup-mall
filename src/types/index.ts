@@ -61,19 +61,48 @@ export interface CartItem {
   gameId: string
 }
 
-export interface Order {
+// ===== 订单相关类型 =====
+
+export type OrderStatus = 'pending_payment' | 'paid' | 'completed' | 'refund_requested' | 'refunded' | 'cancelled'
+
+export interface OrderItem {
   id: string
-  orderNo: string
-  date: string
-  items: { productName: string; specLabel: string; quantity: number; price: number }[]
-  totalPrice: number
-  status: string       // '已完成'/'待发货'/'处理中'
-  payMethod: string
+  order_id: string
+  product_id: string
+  product_name: string
+  game_name: string
+  spec_id: string
+  spec_label: string
+  price: number
+  quantity: number
+  card_code?: string
 }
 
+export interface Order {
+  id: string
+  order_no: string
+  user_id: string
+  status: OrderStatus
+  total_price: number
+  pay_method: string
+  game_account: string
+  alipay_trade_no?: string
+  refund_reason?: string
+  paid_at?: string
+  created_at: string
+  updated_at: string
+  items?: OrderItem[]
+}
+
+// ===== 用户类型 =====
+
 export interface User {
-  username: string
+  id: string
+  email: string
   nickname: string
-  avatar: string
-  balance: number
+  avatar_url: string
+  is_verified: boolean
+  real_name?: string       // 脱敏后，如 "张**"
+  id_card_last4?: string
+  verified_at?: string
 }

@@ -108,10 +108,10 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 border-t border-border-default pt-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
           <p className="text-xs text-text-secondary">
-            © 2026 极速卡 版权所有
+            © 2026 重庆柯桦熙网络科技有限公司 版权所有
           </p>
           <p className="text-xs text-text-secondary">
-            粤ICP备2024183726号
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-text-primary transition-colors">渝ICP备2024040508号-1</a>
           </p>
         </div>
       </div>

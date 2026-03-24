@@ -7,27 +7,9 @@ import { useCart } from '@/contexts/CartContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
-import { formatPrice, generateOrderNo } from '@/lib/utils'
+import { formatPrice } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-
-// ---------------------------------------------------------------------------
-// Payment method definition
-// ---------------------------------------------------------------------------
-
-type PaymentMethodId = 'alipay' | 'wechat' | 'bank'
-
-interface PaymentMethod {
-  id: PaymentMethodId
-  name: string
-  icon: string
-}
-
-const PAYMENT_METHODS: PaymentMethod[] = [
-  { id: 'alipay', name: '支付宝', icon: '💙' },
-  { id: 'wechat', name: '微信支付', icon: '💚' },
-  { id: 'bank', name: '银行卡', icon: '🏦' },
-]
+import { supabase } from '@/lib/supabase/client'
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -39,7 +21,7 @@ function BackLink() {
       href="/cart"
       className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
     >
-      <span>←</span>
+      <span>&larr;</span>
       <span>返回购物车</span>
     </Link>
   )
@@ -51,15 +33,13 @@ function BackLink() {
 
 export default function CheckoutPage() {
   const { items, totalPrice, clearCart } = useCart()
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, user } = useAuth()
   const { showToast } = useToast()
   const router = useRouter()
 
   const [gameAccount, setGameAccount] = useState('')
   const [accountError, setAccountError] = useState('')
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethodId>('alipay')
-  const [successModalOpen, setSuccessModalOpen] = useState(false)
-  const [orderNo, setOrderNo] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   // -------------------------------------------------------------------------
   // Guard: not logged in
@@ -68,15 +48,29 @@ export default function CheckoutPage() {
     return (
       <main className="max-w-3xl mx-auto px-4 py-8 min-h-[60vh] flex flex-col items-center justify-center gap-6">
         <div className="text-center space-y-3">
-          <p className="text-4xl">🔒</p>
+          <p className="text-4xl">&#128274;</p>
           <p className="text-text-primary text-lg font-medium">请先登录后再进行结账</p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => router.push('/user')}
-        >
+        <Button variant="primary" size="md" onClick={() => router.push('/user')}>
           去登录
+        </Button>
+      </main>
+    )
+  }
+
+  // -------------------------------------------------------------------------
+  // Guard: not verified
+  // -------------------------------------------------------------------------
+  if (!user?.is_verified) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-8 min-h-[60vh] flex flex-col items-center justify-center gap-6">
+        <div className="text-center space-y-3">
+          <p className="text-4xl">&#128100;</p>
+          <p className="text-text-primary text-lg font-medium">请先完成实名认证</p>
+          <p className="text-text-muted text-sm">根据相关法规，下单前需要完成实名认证</p>
+        </div>
+        <Button variant="primary" size="md" onClick={() => router.push('/user')}>
+          去认证
         </Button>
       </main>
     )
@@ -85,18 +79,14 @@ export default function CheckoutPage() {
   // -------------------------------------------------------------------------
   // Guard: empty cart
   // -------------------------------------------------------------------------
-  if (items.length === 0 && !successModalOpen) {
+  if (items.length === 0) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-8 min-h-[60vh] flex flex-col items-center justify-center gap-6">
         <div className="text-center space-y-3">
-          <p className="text-4xl">🛒</p>
+          <p className="text-4xl">&#128722;</p>
           <p className="text-text-primary text-lg font-medium">购物车为空，请先选购商品</p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => router.push('/products')}
-        >
+        <Button variant="primary" size="md" onClick={() => router.push('/products')}>
           去购物
         </Button>
       </main>
@@ -108,26 +98,68 @@ export default function CheckoutPage() {
   // -------------------------------------------------------------------------
   function handleAccountChange(value: string) {
     setGameAccount(value)
-    if (accountError && value.trim()) {
-      setAccountError('')
-    }
+    if (accountError && value.trim()) setAccountError('')
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!gameAccount.trim()) {
       setAccountError('请输入您的游戏账号')
       showToast('请填写游戏账号', 'error')
       return
     }
 
-    const no = generateOrderNo()
-    setOrderNo(no)
-    setSuccessModalOpen(true)
-    clearCart()
-  }
+    setSubmitting(true)
 
-  function handleCloseModal() {
-    setSuccessModalOpen(false)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        showToast('登录已过期，请重新登录', 'error')
+        router.push('/user')
+        return
+      }
+
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            productId: item.productId,
+            specId: item.specId,
+            quantity: item.quantity,
+            productName: item.productName,
+            gameName: item.gameName,
+            specLabel: item.specLabel,
+            price: item.price,
+          })),
+          gameAccount: gameAccount.trim(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        showToast(data.error || '创建订单失败', 'error')
+        setSubmitting(false)
+        return
+      }
+
+      clearCart()
+
+      if (data.payUrl) {
+        showToast('正在跳转支付宝...', 'info')
+        window.location.href = data.payUrl
+      } else {
+        // 支付宝不可用时，直接跳转订单页
+        showToast(data.error || '订单已创建', 'info')
+        router.push(`/order/${data.orderId}`)
+      }
+    } catch {
+      showToast('网络错误，请稍后重试', 'error')
+      setSubmitting(false)
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -135,16 +167,13 @@ export default function CheckoutPage() {
   // -------------------------------------------------------------------------
   return (
     <main className="max-w-3xl mx-auto px-4 py-8">
-      {/* Page header */}
       <div className="mb-6 space-y-2">
         <BackLink />
         <h1 className="text-2xl font-bold text-text-primary">确认订单</h1>
       </div>
 
       <div className="space-y-6">
-        {/* ---------------------------------------------------------------- */}
-        {/* Section 1: 订单商品摘要                                           */}
-        {/* ---------------------------------------------------------------- */}
+        {/* 订单商品摘要 */}
         <section className="bg-bg-card rounded-xl p-4">
           <h2 className="text-base font-semibold text-text-primary mb-4">订单商品</h2>
           <ul className="divide-y divide-border-default">
@@ -156,15 +185,13 @@ export default function CheckoutPage() {
                   className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                 >
                   <div className="flex-1 min-w-0 space-y-0.5">
-                    <p className="text-text-primary font-medium text-sm truncate">
-                      {item.gameName}
-                    </p>
+                    <p className="text-text-primary font-medium text-sm truncate">{item.gameName}</p>
                     <p className="text-text-secondary text-xs truncate">
-                      {item.productName} · {item.specLabel}
+                      {item.productName} &middot; {item.specLabel}
                     </p>
                   </div>
                   <div className="ml-4 flex items-center gap-4 shrink-0">
-                    <span className="text-text-secondary text-sm">×{item.quantity}</span>
+                    <span className="text-text-secondary text-sm">&times;{item.quantity}</span>
                     <span className="text-text-primary font-medium text-sm w-20 text-right">
                       {formatPrice(subtotal)}
                     </span>
@@ -175,9 +202,7 @@ export default function CheckoutPage() {
           </ul>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Section 2: 充值账号                                               */}
-        {/* ---------------------------------------------------------------- */}
+        {/* 充值账号 */}
         <section className="bg-bg-card rounded-xl p-4 space-y-3">
           <h2 className="text-base font-semibold text-text-primary">充值账号</h2>
           <div>
@@ -199,52 +224,20 @@ export default function CheckoutPage() {
               <p className="mt-1.5 text-xs text-accent-red">{accountError}</p>
             )}
           </div>
-          <p className="text-xs text-text-muted">
-            请确保账号正确，充值后无法退款
-          </p>
+          <p className="text-xs text-text-muted">请确保账号正确，充值后无法退款</p>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Section 3: 支付方式                                               */}
-        {/* ---------------------------------------------------------------- */}
+        {/* 支付方式 - 仅支付宝 */}
         <section className="bg-bg-card rounded-xl p-4 space-y-3">
           <h2 className="text-base font-semibold text-text-primary">支付方式</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {PAYMENT_METHODS.map((method) => {
-              const isSelected = selectedPayment === method.id
-              return (
-                <button
-                  key={method.id}
-                  type="button"
-                  onClick={() => setSelectedPayment(method.id)}
-                  className={cn(
-                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200',
-                    'hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent-purple/50',
-                    isSelected
-                      ? 'border-accent-purple bg-accent-purple/10'
-                      : 'border-border-default bg-bg-card',
-                  )}
-                  aria-pressed={isSelected}
-                  aria-label={method.name}
-                >
-                  <span className="text-2xl">{method.icon}</span>
-                  <span
-                    className={cn(
-                      'text-sm font-medium',
-                      isSelected ? 'text-accent-purple' : 'text-text-secondary',
-                    )}
-                  >
-                    {method.name}
-                  </span>
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-accent-purple bg-accent-purple/10">
+            <span className="text-2xl">&#128153;</span>
+            <span className="text-sm font-medium text-accent-purple">支付宝</span>
+            <span className="ml-auto text-xs text-accent-green">&#10003; 已选择</span>
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Section 4: 金额汇总                                               */}
-        {/* ---------------------------------------------------------------- */}
+        {/* 金额汇总 */}
         <section className="bg-bg-card rounded-xl p-4">
           <h2 className="text-base font-semibold text-text-primary mb-4">金额汇总</h2>
           <div className="space-y-2">
@@ -254,7 +247,7 @@ export default function CheckoutPage() {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-text-secondary">优惠金额</span>
-              <span className="text-accent-green">-¥0.00</span>
+              <span className="text-accent-green">-&yen;0.00</span>
             </div>
             <div className="h-px bg-border-default my-3" />
             <div className="flex justify-between items-center">
@@ -266,69 +259,24 @@ export default function CheckoutPage() {
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Submit button                                                     */}
-        {/* ---------------------------------------------------------------- */}
+        {/* 提交按钮 */}
         <Button
           variant="primary"
           size="lg"
           className="w-full"
           onClick={handleSubmit}
+          disabled={submitting}
         >
-          提交订单
+          {submitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              正在跳转支付宝...
+            </span>
+          ) : (
+            '立即支付'
+          )}
         </Button>
       </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Success Modal                                                       */}
-      {/* ------------------------------------------------------------------ */}
-      <Modal
-        isOpen={successModalOpen}
-        onClose={handleCloseModal}
-      >
-        <div className="flex flex-col items-center text-center gap-4 pt-2 pb-2">
-          {/* Green checkmark */}
-          <div className="w-16 h-16 rounded-full bg-accent-green/20 flex items-center justify-center">
-            <span className="text-accent-green text-3xl font-bold">✓</span>
-          </div>
-
-          {/* Title */}
-          <h3 className="text-2xl font-bold text-text-primary">支付成功！</h3>
-
-          {/* Order info */}
-          <div className="space-y-1.5 text-sm text-text-secondary">
-            <p>
-              订单号：<span className="text-text-primary font-medium">{orderNo}</span>
-            </p>
-            <p>
-              支付金额：
-              <span className="text-accent-gold font-semibold">
-                {formatPrice(totalPrice)}
-              </span>
-            </p>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-3 w-full mt-2">
-            <Button
-              variant="secondary"
-              size="md"
-              className="flex-1"
-              onClick={() => router.push('/user')}
-            >
-              查看订单
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              className="flex-1"
-              onClick={() => router.push('/')}
-            >
-              继续购物
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </main>
   )
 }

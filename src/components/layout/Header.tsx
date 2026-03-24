@@ -149,9 +149,16 @@ function CartButton({ totalItems }: CartButtonProps) {
 interface UserAreaProps {
   isLoggedIn: boolean
   nickname?: string
+  loading?: boolean
 }
 
-function UserArea({ isLoggedIn, nickname }: UserAreaProps) {
+function UserArea({ isLoggedIn, nickname, loading }: UserAreaProps) {
+  if (loading) {
+    return (
+      <div className="w-7 h-7 rounded-full bg-bg-secondary animate-pulse" />
+    )
+  }
+
   if (isLoggedIn && nickname) {
     return (
       <Link href="/user" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -206,7 +213,7 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
   const { totalItems } = useCart()
-  const { isLoggedIn, user } = useAuth()
+  const { isLoggedIn, user, loading } = useAuth()
 
   const toggleMobile = useCallback(() => {
     setMobileOpen((prev) => !prev)
@@ -243,7 +250,7 @@ export default function Header() {
         <CartButton totalItems={totalItems} />
 
         {/* User */}
-        <UserArea isLoggedIn={isLoggedIn} nickname={user?.nickname} />
+        <UserArea isLoggedIn={isLoggedIn} nickname={user?.nickname} loading={loading} />
 
         {/* Mobile hamburger */}
         <button
