@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getAlipay } from '@/lib/alipay'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -12,6 +11,7 @@ export async function POST(request: NextRequest) {
 
     // 1. 验签
     try {
+      const { getAlipay } = await import('@/lib/alipay')
       const alipay = getAlipay()
       const signValid = alipay.checkNotifySign(params)
       if (!signValid) {

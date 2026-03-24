@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getAlipay } from '@/lib/alipay'
 import { getProductById } from '@/data/products'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -119,6 +118,7 @@ export async function POST(request: NextRequest) {
 
     // 6. 调用支付宝 SDK 创建交易
     try {
+      const { getAlipay } = await import('@/lib/alipay')
       const alipay = getAlipay()
       const notifyUrl = process.env.ALIPAY_NOTIFY_URL || 'http://47.109.189.34/api/alipay/notify'
       const returnUrl = process.env.ALIPAY_RETURN_URL || 'http://47.109.189.34/api/alipay/return'
