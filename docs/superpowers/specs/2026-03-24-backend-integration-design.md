@@ -137,6 +137,12 @@
 
 ### 2.2 数据库函数
 
+#### 序列 — 订单号自增
+
+```sql
+CREATE SEQUENCE order_no_seq START WITH 1;
+```
+
 #### `generate_order_no()` — 生成订单号
 
 ```sql
@@ -145,11 +151,29 @@ RETURNS text AS $$
 DECLARE
   seq_val integer;
 BEGIN
-  -- 基于日期 + 自增序列
   seq_val := nextval('order_no_seq');
-  RETURN 'SC' || to_char(now(), 'YYYYMMDD') || lpad(seq_val::text, 4, '0');
+  RETURN 'SPD' || to_char(now(), 'YYYYMMDD') || lpad(seq_val::text, 6, '0');
 END;
 $$ LANGUAGE plpgsql;
+```
+
+> 注：使用 `SPD` 前缀与现有 mock 订单号风格保持一致。序列全局递增，不按日重置。
+
+#### `auto_update_timestamp()` — 自动更新 updated_at
+
+```sql
+CREATE OR REPLACE FUNCTION auto_update_timestamp()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_orders_updated_at
+  BEFORE UPDATE ON orders
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_update_timestamp();
 ```
 
 #### `assign_card_codes()` — 自动发卡密触发器函数
@@ -157,35 +181,47 @@ $$ LANGUAGE plpgsql;
 ```sql
 CREATE OR REPLACE FUNCTION assign_card_codes()
 RETURNS trigger AS $$
+DECLARE
+  assigned_count integer;
+  total_items integer;
 BEGIN
-  -- 当订单状态从其他状态变为 'paid' 时触发
+  -- 当订单状态从 pending_payment 变为 paid 时触发
   IF NEW.status = 'paid' AND OLD.status = 'pending_payment' THEN
-    -- 为每个 order_item 分配卡密
-    UPDATE order_items oi SET
-      card_code = cc.code
-    FROM (
-      SELECT DISTINCT ON (oi2.id) oi2.id AS item_id, cc2.id AS code_id, cc2.code
-      FROM order_items oi2
-      JOIN card_codes cc2 ON cc2.product_id = oi2.product_id
-        AND cc2.spec_id = oi2.spec_id
-        AND cc2.status = 'available'
-      WHERE oi2.order_id = NEW.id
-      ORDER BY oi2.id, cc2.created_at
-      FOR UPDATE OF cc2 SKIP LOCKED
-    ) cc
-    WHERE oi.id = cc.item_id;
 
-    -- 标记卡密为已售
-    UPDATE card_codes SET
-      status = 'sold',
-      order_item_id = oi.id
-    FROM order_items oi
-    WHERE oi.order_id = NEW.id
-      AND oi.card_code = card_codes.code
-      AND card_codes.status = 'available';
+    -- 使用 CTE 原子化完成：分配卡密 + 标记已售
+    WITH matched AS (
+      SELECT DISTINCT ON (oi.id)
+        oi.id AS item_id,
+        cc.id AS code_id,
+        cc.code AS code_value
+      FROM order_items oi
+      JOIN card_codes cc ON cc.product_id = oi.product_id
+        AND cc.spec_id = oi.spec_id
+        AND cc.status = 'available'
+      WHERE oi.order_id = NEW.id
+      ORDER BY oi.id, cc.created_at
+      FOR UPDATE OF cc SKIP LOCKED
+    ),
+    update_items AS (
+      UPDATE order_items SET card_code = matched.code_value
+      FROM matched WHERE order_items.id = matched.item_id
+      RETURNING order_items.id
+    ),
+    update_codes AS (
+      UPDATE card_codes SET status = 'sold', order_item_id = matched.item_id
+      FROM matched WHERE card_codes.id = matched.code_id
+    )
+    SELECT count(*) INTO assigned_count FROM update_items;
 
-    -- 更新订单状态为已完成
-    NEW.status := 'completed';
+    -- 统计订单总商品数
+    SELECT count(*) INTO total_items FROM order_items WHERE order_id = NEW.id;
+
+    -- 仅当全部商品都分配到卡密时，才标记为已完成
+    -- 库存不足时保持 paid 状态，等待管理员在 Studio 手动处理
+    IF assigned_count = total_items THEN
+      NEW.status := 'completed';
+    END IF;
+
   END IF;
 
   RETURN NEW;
@@ -234,6 +270,10 @@ CREATE POLICY "用户创建订单明细" ON order_items
 -- card_codes: 用户不可直接访问（通过 order_items.card_code 间接获取）
 ALTER TABLE card_codes ENABLE ROW LEVEL SECURITY;
 -- 不创建任何用户策略，仅服务端/触发器可操作
+
+-- 注意：order_items 不设 UPDATE 策略，用户不可修改订单明细
+-- 注意：orders 的 UPDATE 策略仅允许退款申请操作
+-- 支付回调 (/api/alipay/notify) 使用 service_role 客户端绕过 RLS
 ```
 
 ### 2.4 索引
@@ -437,8 +477,8 @@ ALIPAY_RETURN_URL=http://47.109.189.34/api/alipay/return
 
 | 页面 | 改造内容 |
 |------|---------|
-| `/user` | 替换 mock 登录为 Supabase Auth；新增实名认证模块；订单列表改为从 Supabase 读取 |
-| `/checkout` | 新增实名认证检查；对接真实支付宝沙箱；调用 API Route 创建订单 |
+| `/user` | 替换 mock 登录为 Supabase Auth（username→email）；新增实名认证模块；订单列表改为从 Supabase 读取；移除余额（balance）显示 |
+| `/checkout` | 新增实名认证检查；支付方式仅保留"支付宝"（移除微信/银行卡选项）；调用 API Route 创建订单 |
 | Layout | AuthContext 改为 Supabase Auth；Header 用户状态从 Supabase 读取 |
 
 ### 6.3 新增 API Routes
@@ -476,15 +516,17 @@ GOTRUE_MAILER_AUTOCONFIRM=true
 通过 Supabase Studio 或 SQL 批量插入卡密：
 
 ```sql
--- 示例：为王者荣耀 648元宝 预置卡密
+-- 注意：product_id 和 spec_id 必须与 src/data/products.ts 中的实际 ID 一致
+-- 实现时需根据 mock 数据中的真实 ID 生成插入语句
+-- 示例（ID 为示意，实现时替换为真实值）：
 INSERT INTO card_codes (product_id, spec_id, code) VALUES
-('wangzhe-yuanbao', 'spec-648', 'WZRY-648-A001-XXXX-YYYY'),
-('wangzhe-yuanbao', 'spec-648', 'WZRY-648-A002-XXXX-YYYY'),
+('wz-001', 'wz-001-s1', 'WZRY-648-A001-XXXX-YYYY'),
+('wz-001', 'wz-001-s1', 'WZRY-648-A002-XXXX-YYYY');
 -- ... 更多卡密
-;
 ```
 
 每个商品规格建议预置 10-20 个卡密，确保演示时不会库存不足。
+实现时需编写脚本读取 `src/data/products.ts` 中的所有 product/spec ID 自动生成卡密数据。
 
 ---
 
@@ -502,12 +544,15 @@ INSERT INTO card_codes (product_id, spec_id, code) VALUES
 - 订单创建时校验金额与商品 mock 数据一致
 - RLS 确保用户只能操作自己的数据
 - `card_codes` 表用户不可直接访问
+- `/api/checkout` **必须验证用户登录态**（从请求中提取 Supabase JWT）
+- `/api/alipay/notify` **不做用户鉴权**（支付宝服务器回调），但必须验签
+- `/api/alipay/notify` 和 `/api/checkout` 均使用 **service_role 客户端**操作数据库（绕过 RLS）
 
 ### 8.3 支付安全
 
 - 异步通知（notify）为准，同步跳转（return）仅用于 UI 展示
 - 回调中核对 `out_trade_no`（订单号）和 `total_amount`（金额）
-- 防止重复回调：检查订单当前状态
+- 防止重复回调：API Route 先查询订单状态，若非 `pending_payment` 则直接返回 `success`（触发器的 `OLD.status` 检查也提供了数据库层幂等保障）
 
 ---
 
@@ -534,6 +579,58 @@ src/
 │   └── checkout/page.tsx       # 改造：对接真实支付
 └── types/index.ts              # 新增订单相关类型
 ```
+
+### 9.1 TypeScript 类型变更
+
+现有 `User` 类型替换为：
+```typescript
+interface User {
+  id: string
+  email: string
+  nickname: string
+  avatar_url: string
+  is_verified: boolean
+  real_name?: string       // 脱敏后，如 "张**"
+  id_card_last4?: string
+  verified_at?: string
+}
+```
+
+现有 `Order` 类型替换为（状态值从中文改为英文枚举）：
+```typescript
+type OrderStatus = 'pending_payment' | 'paid' | 'completed' | 'refund_requested' | 'refunded' | 'cancelled'
+
+interface Order {
+  id: string
+  order_no: string
+  user_id: string
+  status: OrderStatus
+  total_price: number
+  pay_method: string
+  game_account: string
+  alipay_trade_no?: string
+  refund_reason?: string
+  paid_at?: string
+  created_at: string
+  updated_at: string
+  items?: OrderItem[]
+}
+
+interface OrderItem {
+  id: string
+  order_id: string
+  product_id: string
+  product_name: string
+  game_name: string
+  spec_id: string
+  spec_label: string
+  price: number
+  quantity: number
+  card_code?: string  // 已发货时有值
+}
+```
+
+> 注：移除原 `User.balance` 字段和对应的 UI 余额显示。
 
 ---
 
