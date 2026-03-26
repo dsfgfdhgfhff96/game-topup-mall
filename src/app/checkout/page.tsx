@@ -7,6 +7,8 @@ import { useCart } from '@/contexts/CartContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
+import { QrPayModal } from '@/components/QrPayModal'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { formatPrice } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase/client'
@@ -37,9 +39,14 @@ export default function CheckoutPage() {
   const { showToast } = useToast()
   const router = useRouter()
 
+  const { isMobile } = useDeviceType()
   const [gameAccount, setGameAccount] = useState('')
   const [accountError, setAccountError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [paymentInfo, setPaymentInfo] = useState<{
+    payUrl: string; orderId: string; orderNo: string; totalPrice: number
+  } | null>(null)
 
   // -------------------------------------------------------------------------
   // Guard: not logged in
@@ -146,13 +153,24 @@ export default function CheckoutPage() {
         return
       }
 
-      clearCart()
-
-      if (data.payUrl) {
+      if (data.payUrl && !isMobile) {
+        // PC 端：弹出二维码扫码支付（不清空购物车，避免触发空购物车 guard）
+        setPaymentInfo({
+          payUrl: data.payUrl,
+          orderId: data.orderId,
+          orderNo: data.orderNo,
+          totalPrice,
+        })
+        setQrModalOpen(true)
+        setSubmitting(false)
+      } else if (data.payUrl) {
+        // 移动端：跳转支付宝
+        clearCart()
         showToast('正在跳转支付宝...', 'info')
         window.location.href = data.payUrl
       } else {
         // 支付宝不可用时，直接跳转订单页
+        clearCart()
         showToast(data.error || '订单已创建', 'info')
         router.push(`/order/${data.orderId}`)
       }
@@ -277,6 +295,18 @@ export default function CheckoutPage() {
           )}
         </Button>
       </div>
+
+      {/* PC 端二维码支付弹窗 */}
+      {paymentInfo && (
+        <QrPayModal
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+          payUrl={paymentInfo.payUrl}
+          orderId={paymentInfo.orderId}
+          orderNo={paymentInfo.orderNo}
+          totalPrice={paymentInfo.totalPrice}
+        />
+      )}
     </main>
   )
 }

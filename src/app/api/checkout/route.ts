@@ -123,20 +123,14 @@ export async function POST(request: NextRequest) {
       const notifyUrl = process.env.ALIPAY_NOTIFY_URL || 'https://pay.kehuaxi.top/api/alipay/notify'
       const returnUrl = process.env.ALIPAY_RETURN_URL || 'https://www.kehuaxi.top/pay/success'
 
-      // 根据 User-Agent 判断设备类型，选择 PC 或手机网站支付
-      const userAgent = request.headers.get('user-agent') || ''
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
-
-      const apiMethod = isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.page.pay'
-      const productCode = isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY'
-
-      const result = await alipay.pageExec(apiMethod, {
+      // 统一使用手机网站支付（wap.pay），PC 端由前端生成二维码扫码支付
+      const result = await alipay.pageExec('alipay.trade.wap.pay', {
         method: 'GET',
         bizContent: {
           out_trade_no: order.order_no,
           total_amount: totalPrice.toFixed(2),
           subject: `极速卡充值订单 ${order.order_no}`,
-          product_code: productCode,
+          product_code: 'QUICK_WAP_WAY',
         },
         notify_url: notifyUrl,
         return_url: `${returnUrl}?orderId=${order.id}`,
