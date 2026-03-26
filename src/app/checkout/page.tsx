@@ -120,6 +120,7 @@ export default function CheckoutPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
+        setSubmitting(false)
         showToast('登录已过期，请重新登录', 'error')
         router.push('/user')
         return
@@ -147,7 +148,7 @@ export default function CheckoutPage() {
 
       const data = await response.json()
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 202) {
         showToast(data.error || '创建订单失败', 'error')
         setSubmitting(false)
         return
@@ -164,15 +165,16 @@ export default function CheckoutPage() {
         setQrModalOpen(true)
         setSubmitting(false)
       } else if (data.payUrl) {
-        // 移动端：跳转支付宝
-        clearCart()
+        // 移动端：先跳转支付宝，再清空购物车（避免 clearCart 触发重渲染导致空购物车 guard 闪现）
         showToast('正在跳转支付宝...', 'info')
         window.location.href = data.payUrl
+        // 跳转已触发，延迟清空购物车（页面即将卸载，不会触发重渲染）
+        setTimeout(() => clearCart(), 100)
       } else {
         // 支付宝不可用时，直接跳转订单页
-        clearCart()
         showToast(data.error || '订单已创建', 'info')
         router.push(`/order/${data.orderId}`)
+        setTimeout(() => clearCart(), 100)
       }
     } catch {
       showToast('网络错误，请稍后重试', 'error')

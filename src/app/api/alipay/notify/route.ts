@@ -58,19 +58,27 @@ export async function POST(request: NextRequest) {
       return new NextResponse('fail', { status: 200 })
     }
 
-    // 5. 更新订单状态为 paid（触发器自动发卡密，可能变为 completed）
-    const { error: updateError } = await supabaseAdmin
+    // 5. 更新订单状态为 paid（乐观锁：仅 pending_payment 状态才更新，防止并发重复处理）
+    const paidAt = params.gmt_payment || new Date().toISOString()
+    const { data: updated, error: updateError } = await supabaseAdmin
       .from('orders')
       .update({
         status: 'paid',
         alipay_trade_no: tradeNo,
-        paid_at: new Date().toISOString(),
+        paid_at: paidAt,
       })
       .eq('id', order.id)
+      .eq('status', 'pending_payment')
+      .select('id')
 
     if (updateError) {
       console.error('更新订单状态失败:', updateError)
       return new NextResponse('fail', { status: 200 })
+    }
+
+    // 乐观锁：无匹配行说明已被其他请求处理
+    if (!updated || updated.length === 0) {
+      return new NextResponse('success', { status: 200 })
     }
 
     return new NextResponse('success', { status: 200 })

@@ -18,6 +18,7 @@ function PaySuccessContent() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [pollTimedOut, setPollTimedOut] = useState(false)
 
   const fetchOrder = useCallback(async () => {
     if (!orderId) {
@@ -52,11 +53,20 @@ function PaySuccessContent() {
     }
   }, [authLoading, isLoggedIn, fetchOrder])
 
-  // 轮询订单状态（支付回调可能有延迟）
+  // 轮询订单状态（支付回调可能有延迟，5 分钟超时）
   useEffect(() => {
-    if (!order || order.status !== 'pending_payment') return
+    if (!order || order.status !== 'pending_payment' || pollTimedOut) return
+
+    const POLL_TIMEOUT = 5 * 60 * 1000
+    const startTime = Date.now()
 
     const interval = setInterval(async () => {
+      if (Date.now() - startTime > POLL_TIMEOUT) {
+        setPollTimedOut(true)
+        clearInterval(interval)
+        return
+      }
+
       const { data } = await supabase
         .from('orders')
         .select('*, items:order_items(*)')
@@ -76,7 +86,7 @@ function PaySuccessContent() {
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [order, orderId])
+  }, [order, orderId, pollTimedOut])
 
   async function copyToClipboard(text: string, index: number) {
     try {
@@ -120,6 +130,7 @@ function PaySuccessContent() {
 
   const isPaid = order.status === 'paid' || order.status === 'completed'
   const isPending = order.status === 'pending_payment'
+  const isCancelled = order.status === 'cancelled'
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-8">
@@ -132,6 +143,14 @@ function PaySuccessContent() {
             </div>
             <h1 className="text-2xl font-bold text-text-primary mb-2">支付成功</h1>
             <p className="text-text-muted">卡密已自动发放，请查看下方信息</p>
+          </>
+        ) : isCancelled ? (
+          <>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-red/20 flex items-center justify-center">
+              <span className="text-accent-red text-3xl">&#10007;</span>
+            </div>
+            <h1 className="text-2xl font-bold text-text-primary mb-2">订单已取消</h1>
+            <p className="text-text-muted">订单超时未支付已自动取消，请重新下单</p>
           </>
         ) : isPending ? (
           <>
@@ -211,11 +230,29 @@ function PaySuccessContent() {
         )}
 
         {/* 等待中提示 */}
-        {isPending && (
+        {isPending && !pollTimedOut && (
           <div className="bg-accent-gold/10 border border-accent-gold/30 rounded-xl p-4 text-center">
             <p className="text-sm text-accent-gold">
               正在等待支付宝回调确认，通常需要几秒钟...
             </p>
+          </div>
+        )}
+
+        {/* 轮询超时提示 */}
+        {isPending && pollTimedOut && (
+          <div className="bg-accent-red/10 border border-accent-red/30 rounded-xl p-4 text-center space-y-2">
+            <p className="text-sm text-accent-red font-medium">
+              等待支付确认超时
+            </p>
+            <p className="text-xs text-text-muted">
+              如您已完成支付，请刷新页面查看最新状态。如仍未到账，请联系客服处理。
+            </p>
+            <button
+              onClick={() => { setPollTimedOut(false); fetchOrder() }}
+              className="mt-2 px-4 py-1.5 text-xs rounded-lg bg-accent-purple/20 text-accent-purple hover:bg-accent-purple/30 transition-colors"
+            >
+              刷新订单状态
+            </button>
           </div>
         )}
 

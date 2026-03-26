@@ -1,55 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { getProductById } from '@/data/products'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-interface CheckoutItem {
-  productId: string
-  specId: string
-  quantity: number
-  productName: string
-  gameName: string
-  specLabel: string
-  price: number
-}
+const checkoutItemSchema = z.object({
+  productId: z.string().min(1),
+  specId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99),
+  productName: z.string(),
+  gameName: z.string(),
+  specLabel: z.string(),
+  price: z.number().min(0),
+})
 
-interface CheckoutBody {
-  items: CheckoutItem[]
-  gameAccount: string
-}
+const checkoutBodySchema = z.object({
+  items: z.array(checkoutItemSchema).min(1, '购物车为空'),
+  gameAccount: z.string().min(1, '请填写游戏账号').max(100),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. 验证用户登录态
+    // 1. 验证用户登录态（使用 anon key，依赖 token 本身的权限，不绕过 RLS）
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: '请先登录' }, { status: 401 })
     }
 
     const token = authHeader.slice(7)
-    const supabaseUser = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
 
-    const { data: { user }, error: authError } = await supabaseUser.auth.getUser(token)
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
     if (authError || !user) {
       return NextResponse.json({ error: '登录已过期，请重新登录' }, { status: 401 })
     }
 
-    // 2. 解析请求体
-    const body = await request.json() as CheckoutBody
-    const { items, gameAccount } = body
-
-    if (!items || items.length === 0) {
-      return NextResponse.json({ error: '购物车为空' }, { status: 400 })
+    // 2. 解析并校验请求体
+    const rawBody = await request.json()
+    const parseResult = checkoutBodySchema.safeParse(rawBody)
+    if (!parseResult.success) {
+      const firstError = parseResult.error.issues[0]?.message || '请求参数错误'
+      return NextResponse.json({ error: firstError }, { status: 400 })
     }
-    if (!gameAccount?.trim()) {
-      return NextResponse.json({ error: '请填写游戏账号' }, { status: 400 })
-    }
+    const { items, gameAccount } = parseResult.data
 
     // 3. 验证商品和价格
     let totalPrice = 0
-    const validatedItems: CheckoutItem[] = []
+    const validatedItems: z.infer<typeof checkoutItemSchema>[] = []
 
     for (const item of items) {
       const product = getProductById(item.productId)
@@ -75,28 +75,10 @@ export async function POST(request: NextRequest) {
 
     totalPrice = Math.round(totalPrice * 100) / 100
 
-    // 4. 用 service_role 创建订单
+    // 4. 用 service_role 创建订单和明细（通过 RPC 在事务中完成，保证原子性）
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        total_price: totalPrice,
-        game_account: gameAccount.trim(),
-        pay_method: 'alipay',
-      })
-      .select()
-      .single()
-
-    if (orderError || !order) {
-      console.error('创建订单失败:', orderError)
-      return NextResponse.json({ error: '创建订单失败' }, { status: 500 })
-    }
-
-    // 5. 创建订单明细
     const orderItems = validatedItems.map((item) => ({
-      order_id: order.id,
       product_id: item.productId,
       product_name: item.productName,
       game_name: item.gameName,
@@ -106,17 +88,23 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
     }))
 
-    const { error: itemsError } = await supabaseAdmin
-      .from('order_items')
-      .insert(orderItems)
+    const { data: order, error: orderError } = await supabaseAdmin.rpc(
+      'create_order_with_items',
+      {
+        p_user_id: user.id,
+        p_total_price: totalPrice,
+        p_game_account: gameAccount.trim(),
+        p_pay_method: 'alipay',
+        p_items: orderItems,
+      }
+    )
 
-    if (itemsError) {
-      console.error('创建订单明细失败:', itemsError)
-      await supabaseAdmin.from('orders').delete().eq('id', order.id)
+    if (orderError || !order) {
+      console.error('创建订单失败:', orderError)
       return NextResponse.json({ error: '创建订单失败' }, { status: 500 })
     }
 
-    // 6. 调用支付宝 SDK 创建交易
+    // 5. 调用支付宝 SDK 创建交易
     try {
       const { getAlipay } = await import('@/lib/alipay')
       const alipay = getAlipay()
@@ -143,12 +131,15 @@ export async function POST(request: NextRequest) {
       })
     } catch (alipayError) {
       console.error('支付宝创建交易失败:', alipayError)
-      return NextResponse.json({
-        orderId: order.id,
-        orderNo: order.order_no,
-        payUrl: null,
-        error: '支付宝暂不可用，订单已创建，请稍后在订单页重新支付',
-      })
+      return NextResponse.json(
+        {
+          orderId: order.id,
+          orderNo: order.order_no,
+          payUrl: null,
+          error: '支付宝暂不可用，订单已创建，请稍后在订单页重新支付',
+        },
+        { status: 202 },
+      )
     }
   } catch (err) {
     console.error('Checkout error:', err)

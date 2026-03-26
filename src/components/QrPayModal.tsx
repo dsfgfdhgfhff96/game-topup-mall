@@ -20,7 +20,7 @@ interface QrPayModalProps {
 export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPrice }: QrPayModalProps) {
   const router = useRouter()
   const { clearCart } = useCart()
-  const { isPaid, isExpired } = useOrderPolling(orderId, isOpen)
+  const { isPaid, isCancelled, isExpired } = useOrderPolling(orderId, isOpen)
 
   useEffect(() => {
     if (isPaid) {
@@ -51,6 +51,11 @@ export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPri
             <p className="text-accent-green font-semibold">支付成功</p>
             <p className="text-text-muted text-xs">正在跳转...</p>
           </div>
+        ) : isCancelled ? (
+          <div className="w-64 h-64 flex flex-col items-center justify-center gap-3">
+            <p className="text-accent-red text-lg font-medium">订单已取消</p>
+            <p className="text-text-muted text-xs">订单超时未支付已自动取消，请重新下单</p>
+          </div>
         ) : isExpired ? (
           <div className="w-64 h-64 flex flex-col items-center justify-center gap-3">
             <p className="text-text-muted text-lg">二维码已过期</p>
@@ -63,7 +68,7 @@ export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPri
         )}
 
         {/* 提示 */}
-        {!isPaid && !isExpired && (
+        {!isPaid && !isCancelled && !isExpired && (
           <div className="text-center space-y-2">
             <p className="text-text-primary text-sm font-medium">
               请使用支付宝扫描二维码完成付款
@@ -75,7 +80,7 @@ export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPri
         )}
 
         {/* 备用链接 */}
-        {!isPaid && !isExpired && (
+        {!isPaid && !isCancelled && !isExpired && (
           <button
             onClick={() => window.open(payUrl, '_blank')}
             className="text-accent-purple text-xs hover:underline"
