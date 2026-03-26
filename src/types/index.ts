@@ -63,7 +63,7 @@ export interface CartItem {
 
 // ===== 订单相关类型 =====
 
-export type OrderStatus = 'pending_payment' | 'paid' | 'completed' | 'refund_requested' | 'refunded' | 'cancelled'
+export type OrderStatus = 'pending_payment' | 'paid' | 'completed' | 'refund_requested' | 'refunded' | 'cancelled' | 'blocked'
 
 export interface OrderItem {
   id: string
@@ -87,6 +87,9 @@ export interface Order {
   pay_method: string
   game_account: string
   alipay_trade_no?: string
+  alipay_buyer_id?: string
+  alipay_buyer_logon_id?: string
+  client_ip?: string
   refund_reason?: string
   paid_at?: string
   created_at: string

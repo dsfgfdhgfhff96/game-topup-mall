@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     const outTradeNo = params.out_trade_no
     const totalAmount = params.total_amount
     const tradeNo = params.trade_no
+    const buyerId = params.buyer_id || null
+    const buyerLogonId = params.buyer_logon_id || null
 
     // 只处理交易成功的通知
     if (tradeStatus !== 'TRADE_SUCCESS' && tradeStatus !== 'TRADE_FINISHED') {
@@ -35,7 +37,34 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 2. 查询订单
+    // 2. 黑名单校验（支付宝 UID）
+    if (buyerId) {
+      const { data: blocked } = await supabaseAdmin
+        .from('payment_blacklist')
+        .select('id')
+        .eq('type', 'alipay_uid')
+        .eq('value', buyerId)
+        .maybeSingle()
+
+      if (blocked) {
+        console.error('黑名单命中:', { buyerId, outTradeNo })
+        // 记录买家信息到订单，标记为 blocked
+        await supabaseAdmin
+          .from('orders')
+          .update({
+            status: 'blocked',
+            alipay_trade_no: tradeNo,
+            alipay_buyer_id: buyerId,
+            alipay_buyer_logon_id: buyerLogonId,
+          })
+          .eq('order_no', outTradeNo)
+          .eq('status', 'pending_payment')
+        // 返回 success 避免支付宝重试，后续人工处理退款
+        return new NextResponse('success', { status: 200 })
+      }
+    }
+
+    // 3. 查询订单
     const { data: order, error: queryError } = await supabaseAdmin
       .from('orders')
       .select('id, order_no, total_price, status')
@@ -65,6 +94,8 @@ export async function POST(request: NextRequest) {
       .update({
         status: 'paid',
         alipay_trade_no: tradeNo,
+        alipay_buyer_id: buyerId,
+        alipay_buyer_logon_id: buyerLogonId,
         paid_at: paidAt,
       })
       .eq('id', order.id)

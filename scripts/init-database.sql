@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS orders (
   pay_method text DEFAULT 'alipay',
   game_account text NOT NULL,
   alipay_trade_no text,
+  alipay_buyer_id text,
+  alipay_buyer_logon_id text,
+  client_ip text,
   refund_reason text,
   paid_at timestamptz,
   created_at timestamptz DEFAULT now(),
@@ -172,15 +175,16 @@ CREATE OR REPLACE FUNCTION create_order_with_items(
   p_total_price numeric,
   p_game_account text,
   p_pay_method text,
-  p_items jsonb
+  p_client_ip text DEFAULT NULL,
+  p_items jsonb DEFAULT '[]'::jsonb
 )
 RETURNS jsonb AS $$
 DECLARE
   v_order record;
   v_item jsonb;
 BEGIN
-  INSERT INTO orders (user_id, total_price, game_account, pay_method)
-  VALUES (p_user_id, p_total_price, p_game_account, p_pay_method)
+  INSERT INTO orders (user_id, total_price, game_account, pay_method, client_ip)
+  VALUES (p_user_id, p_total_price, p_game_account, p_pay_method, p_client_ip)
   RETURNING * INTO v_order;
 
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
@@ -220,3 +224,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 使用 pg_cron 定时调用（需在 Supabase Dashboard 或 SQL 中启用 pg_cron 扩展）
 -- SELECT cron.schedule('cancel-expired-orders', '*/5 * * * *', 'SELECT cancel_expired_orders()');
+
+-- 14. 支付黑名单表
+CREATE TABLE IF NOT EXISTS payment_blacklist (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type text NOT NULL DEFAULT 'alipay_uid',
+  value text NOT NULL,
+  reason text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blacklist_type_value ON payment_blacklist(type, value);
+
+ALTER TABLE payment_blacklist ENABLE ROW LEVEL SECURITY;
+-- 黑名单仅 service_role 可操作，普通用户无权访问

@@ -75,7 +75,13 @@ export async function POST(request: NextRequest) {
 
     totalPrice = Math.round(totalPrice * 100) / 100
 
-    // 4. 用 service_role 创建订单和明细（通过 RPC 在事务中完成，保证原子性）
+    // 4. 提取客户端 IP
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown'
+
+    // 5. 用 service_role 创建订单和明细（通过 RPC 在事务中完成，保证原子性）
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     const orderItems = validatedItems.map((item) => ({
@@ -95,6 +101,7 @@ export async function POST(request: NextRequest) {
         p_total_price: totalPrice,
         p_game_account: gameAccount.trim(),
         p_pay_method: 'alipay',
+        p_client_ip: clientIp,
         p_items: orderItems,
       }
     )

@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   refund_requested: '退款申请中',
   refunded: '已退款',
   cancelled: '已取消',
+  blocked: '异常拦截',
 }
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
@@ -35,6 +36,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   refund_requested: 'bg-accent-red/20 text-accent-red border border-accent-red/30',
   refunded: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
   cancelled: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
+  blocked: 'bg-accent-red/20 text-accent-red border border-accent-red/30',
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {
