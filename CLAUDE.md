@@ -147,6 +147,11 @@ mkdir -p .next/standalone
 tar xzf /tmp/deploy.tar.gz -C .next/standalone
 cp .env.local .next/standalone/ 2>/dev/null || true
 
+# Node 18 polyfill（alipay-sdk 需要全局 File 对象，Node 18 没有）
+if ! grep -q "globalThis.File" .next/standalone/server.js; then
+  sed -i '1i\if (typeof globalThis.File === "undefined") { const { Blob } = require("buffer"); globalThis.File = class File extends Blob { constructor(chunks, name, opts) { super(chunks, opts); this.name = name; this.lastModified = opts?.lastModified || Date.now(); } }; }' .next/standalone/server.js
+fi
+
 # 加载支付宝密钥
 export BW_SESSION="jZCsjhsS/iusDSX0t2MONEZspQvs/JF9hEN41h5Unt23WH1tFXpTARcA5Nw+sH4b7+cr8Gmn4lB4Nvbjnhb4bQ=="
 export ALIPAY_APP_ID=$(bw get password appid)
@@ -168,6 +173,28 @@ DEPLOY
 
 ### 环境变量
 服务器 `.env.local` 位于 `/opt/mall/.env.local`，部署时会自动拷贝到 standalone 目录。
+
+### 部署后清理
+部署完成后必须清理临时文件：
+```bash
+# 清理本地
+rm -f /tmp/deploy.tar.gz /tmp/standalone.tar.gz /tmp/zod.tar.gz
+
+# 清理跳板机
+ssh -o "ProxyCommand=connect -S 127.0.0.1:7897 %h %p" work1@13.214.90.18 "rm -f /tmp/deploy.tar.gz"
+
+# 清理前端服务器
+ssh -o "ProxyCommand=connect -S 127.0.0.1:7897 %h %p" work1@13.214.90.18 "ssh root@47.109.189.34 'rm -f /tmp/deploy.tar.gz'"
+```
+
+### 数据库变更部署
+数据库 SQL 通过 Supabase 服务器的 docker exec 执行：
+```bash
+ssh -o "ProxyCommand=connect -S 127.0.0.1:7897 %h %p" work1@13.214.90.18 \
+  "ssh ubuntu@13.159.177.126 \"docker exec -i supabase-db psql -U postgres -d postgres\"" <<'SQL'
+-- 在这里写 SQL
+SQL
+```
 
 ### 常用运维
 ```bash
