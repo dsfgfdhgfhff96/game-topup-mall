@@ -1,0 +1,22 @@
+[Unit]
+Description=极速卡游戏充值商城 (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/mall/.next/standalone
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+ExecStart=/usr/bin/bash /opt/mall/scripts/start-with-secrets.sh
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mall
+
+[Install]
+WantedBy=multi-user.target

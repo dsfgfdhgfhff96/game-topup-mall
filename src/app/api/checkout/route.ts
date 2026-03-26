@@ -120,16 +120,23 @@ export async function POST(request: NextRequest) {
     try {
       const { getAlipay } = await import('@/lib/alipay')
       const alipay = getAlipay()
-      const notifyUrl = process.env.ALIPAY_NOTIFY_URL || 'http://47.109.189.34/api/alipay/notify'
-      const returnUrl = process.env.ALIPAY_RETURN_URL || 'http://47.109.189.34/api/alipay/return'
+      const notifyUrl = process.env.ALIPAY_NOTIFY_URL || 'https://pay.kehuaxi.top/api/alipay/notify'
+      const returnUrl = process.env.ALIPAY_RETURN_URL || 'https://www.kehuaxi.top/pay/success'
 
-      const result = await alipay.pageExec('alipay.trade.page.pay', {
+      // 根据 User-Agent 判断设备类型，选择 PC 或手机网站支付
+      const userAgent = request.headers.get('user-agent') || ''
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+
+      const apiMethod = isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.page.pay'
+      const productCode = isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY'
+
+      const result = await alipay.pageExec(apiMethod, {
         method: 'GET',
         bizContent: {
           out_trade_no: order.order_no,
           total_amount: totalPrice.toFixed(2),
           subject: `极速卡充值订单 ${order.order_no}`,
-          product_code: 'FAST_INSTANT_TRADE_PAY',
+          product_code: productCode,
         },
         notify_url: notifyUrl,
         return_url: `${returnUrl}?orderId=${order.id}`,
