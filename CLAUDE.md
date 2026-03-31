@@ -114,7 +114,7 @@ ssh -o "ProxyCommand=connect -S 127.0.0.1:7897 %h %p" -J work1@13.214.90.18 ubun
 - 项目目录：`/opt/mall/`
 - 运行目录：`/opt/mall/.next/standalone/`
 - 进程管理：nohup 启动 node server.js（standalone 模式）
-- 支付宝密钥：通过 Vaultwarden (bw CLI) 读取，BW_SESSION 在 deploy 脚本中
+- 支付宝密钥：通过服务器 `.env.local` 配置，禁止通过 Vaultwarden 覆盖
 
 ### 部署流程（本地构建 + 上传产物）
 
@@ -152,11 +152,7 @@ if ! grep -q "globalThis.File" .next/standalone/server.js; then
   sed -i '1i\if (typeof globalThis.File === "undefined") { const { Blob } = require("buffer"); globalThis.File = class File extends Blob { constructor(chunks, name, opts) { super(chunks, opts); this.name = name; this.lastModified = opts?.lastModified || Date.now(); } }; }' .next/standalone/server.js
 fi
 
-# 加载支付宝密钥
-export BW_SESSION="jZCsjhsS/iusDSX0t2MONEZspQvs/JF9hEN41h5Unt23WH1tFXpTARcA5Nw+sH4b7+cr8Gmn4lB4Nvbjnhb4bQ=="
-export ALIPAY_APP_ID=$(bw get password appid)
-export ALIPAY_PRIVATE_KEY=$(bw get password private)
-export ALIPAY_PUBLIC_KEY=$(bw get password aliypay-public)
+# 支付宝密钥由 .env.local 提供，不再从 Vaultwarden 读取（Vaultwarden 中的密钥已过期）
 
 cd .next/standalone
 HOSTNAME=0.0.0.0 PORT=3000 nohup node server.js > /tmp/next.log 2>&1 &

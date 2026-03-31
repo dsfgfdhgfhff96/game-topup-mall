@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
+import { QrPayModal } from '@/components/QrPayModal'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase/client'
 import type { Order, OrderStatus } from '@/types'
@@ -400,12 +402,18 @@ type OrderFilter = 'all' | 'pending_payment' | 'completed' | 'refund_requested'
 function OrderHistory() {
   const { user } = useAuth()
   const { showToast } = useToast()
+  const { isMobile } = useDeviceType()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<OrderFilter>('all')
   const [refundOrderId, setRefundOrderId] = useState<string | null>(null)
   const [refundReason, setRefundReason] = useState('')
   const [submittingRefund, setSubmittingRefund] = useState(false)
+  const [repaying, setRepaying] = useState<string | null>(null)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [paymentInfo, setPaymentInfo] = useState<{
+    payUrl: string; orderId: string; orderNo: string; totalPrice: number
+  } | null>(null)
 
   const fetchOrders = useCallback(async () => {
     if (!user) return
@@ -455,6 +463,51 @@ function OrderHistory() {
     }
   }
 
+  async function handleRepay(orderId: string) {
+    setRepaying(orderId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        showToast('登录已过期，请重新登录', 'error')
+        setRepaying(null)
+        return
+      }
+
+      const response = await fetch('/api/repay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        showToast(data.error || '发起支付失败', 'error')
+        setRepaying(null)
+        return
+      }
+
+      if (data.payUrl && !isMobile) {
+        setPaymentInfo({
+          payUrl: data.payUrl,
+          orderId: data.orderId,
+          orderNo: data.orderNo,
+          totalPrice: data.totalPrice,
+        })
+        setQrModalOpen(true)
+      } else if (data.payUrl) {
+        showToast('正在跳转支付宝...', 'info')
+        window.location.href = data.payUrl
+      }
+    } catch {
+      showToast('网络错误，请稍后重试', 'error')
+    }
+    setRepaying(null)
+  }
+
   const filters: { key: OrderFilter; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'pending_payment', label: '待支付' },
@@ -494,6 +547,19 @@ function OrderHistory() {
         ))}
       </div>
 
+      {/* PC 端重新支付二维码弹窗 */}
+      {paymentInfo && (
+        <QrPayModal
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+          payUrl={paymentInfo.payUrl}
+          orderId={paymentInfo.orderId}
+          orderNo={paymentInfo.orderNo}
+          totalPrice={paymentInfo.totalPrice}
+          skipClearCart
+        />
+      )}
+
       {filteredOrders.length === 0 ? (
         <p className="text-text-muted text-center py-12">暂无订单记录</p>
       ) : (
@@ -530,6 +596,16 @@ function OrderHistory() {
                   <Link href={`/order/${order.id}`}>
                     <Button variant="secondary" size="sm">查看详情</Button>
                   </Link>
+                  {order.status === 'pending_payment' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleRepay(order.id)}
+                      disabled={repaying === order.id}
+                    >
+                      {repaying === order.id ? '发起中...' : '重新支付'}
+                    </Button>
+                  )}
                   {order.status === 'completed' && (
                     <Button
                       variant="secondary"

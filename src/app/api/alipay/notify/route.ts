@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // 5. 更新订单状态为 paid（乐观锁：仅 pending_payment 状态才更新，防止并发重复处理）
     const paidAt = params.gmt_payment || new Date().toISOString()
-    const { data: updated, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('orders')
       .update({
         status: 'paid',
@@ -100,16 +100,10 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', order.id)
       .eq('status', 'pending_payment')
-      .select('id')
 
     if (updateError) {
       console.error('更新订单状态失败:', updateError)
       return new NextResponse('fail', { status: 200 })
-    }
-
-    // 乐观锁：无匹配行说明已被其他请求处理
-    if (!updated || updated.length === 0) {
-      return new NextResponse('success', { status: 200 })
     }
 
     return new NextResponse('success', { status: 200 })

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { Modal } from '@/components/ui/Modal'
 import { useCart } from '@/contexts/CartContext'
@@ -15,23 +14,26 @@ interface QrPayModalProps {
   orderId: string
   orderNo: string
   totalPrice: number
+  /** 重新支付场景不需要清空购物车 */
+  skipClearCart?: boolean
 }
 
-export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPrice }: QrPayModalProps) {
-  const router = useRouter()
+export function QrPayModal({ isOpen, onClose, payUrl, orderId, orderNo, totalPrice, skipClearCart }: QrPayModalProps) {
   const { clearCart } = useCart()
   const { isPaid, isCancelled, isExpired } = useOrderPolling(orderId, isOpen)
 
   useEffect(() => {
     if (isPaid) {
-      clearCart()
+      // 先清空购物车（仅从 checkout 发起时），再用全页跳转避免 React 重渲染导致跳转失败
+      if (!skipClearCart) {
+        clearCart()
+      }
       const timer = setTimeout(() => {
-        onClose()
-        router.push(`/pay/success?orderId=${orderId}`)
+        window.location.href = `/pay/success?orderId=${orderId}`
       }, 1500)
       return () => clearTimeout(timer)
     }
-  }, [isPaid, orderId, onClose, router, clearCart])
+  }, [isPaid, orderId, clearCart, skipClearCart])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="扫码支付">
